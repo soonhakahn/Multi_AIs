@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Multi AIs">
+<meta name="theme-color" content="#0f1420">
+<title>Multi AIs 발사대</title>
+<style>
+  :root { --bg: #0f1420; --panel: #19202f; --line: #2a3347; --text: #eef2f8; --muted: #93a0b8; --accent: #ffb020; --ok: #4ccf7a; color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  main { max-width: 640px; margin: 0 auto; display: grid; gap: 14px; }
+  h1 { margin: 4px 0 0; font-size: 22px; }
+  .sub { margin: 0; color: var(--muted); font-size: 14px; }
+  textarea { width: 100%; min-height: 120px; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel);
+    color: var(--text); font: inherit; resize: vertical; }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  button, a.open { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 12px; padding: 10px 14px;
+    font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; text-align: center; }
+  button.primary { background: var(--accent); color: #1b1400; border: 0; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  li { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); }
+  li label { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: center; }
+  li input { width: 20px; height: 20px; accent-color: var(--accent); }
+  .name { font-weight: 700; }
+  .tag { display: block; font-size: 12px; color: var(--muted); }
+  .tag.ok { color: var(--ok); }
+  a.open.off { opacity: .4; pointer-events: none; }
+  #msg { min-height: 22px; color: var(--ok); font-size: 14px; }
+  .note { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>Multi AIs 발사대</h1>
+    <p class="sub">질문 하나를 여러 AI에게 보내세요. iPhone에서는 한 화면에 나란히 놓을 수 없어서 AI별로 엽니다.</p>
+  </div>
+
+  <textarea id="q" placeholder="여기에 질문을 입력하세요" aria-label="질문"></textarea>
+
+  <div class="actions">
+    <button id="copy">질문 복사</button>
+    <button id="next" class="primary">선택한 AI 순서대로 열기</button>
+  </div>
+  <div id="msg" role="status"></div>
+
+  <ul id="list"></ul>
+
+  <p class="note">
+    <b>자동 입력</b>: 질문이 미리 채워진 채로 열립니다(사이트가 지원하는 경우).
+    <b>붙여넣기</b>: 질문을 복사해 두므로 열린 화면의 입력창을 길게 눌러 붙여넣으세요.
+    로그인은 각 사이트에서 직접 합니다. 질문은 이 페이지에 저장되지 않고 이 기기의 브라우저에만 남습니다.
+  </p>
+</main>
+
+<script type="module">
+  import { SITES, DEFAULT_ENABLED, buildDeepLink } from "./shared/sites.mjs";
+
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k, fallback) { try { const v = localStorage.getItem(k); return v === null ? fallback : JSON.parse(v); } catch { return fallback; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage may be unavailable */ } },
+  };
+
+  let enabled = new Set(store.get("enabled", [...DEFAULT_ENABLED, "grok", "kimi", "manus", "genspark"]));
+  let cursor = 0;
+  $("q").value = store.get("q", "");
+
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch { /* fall back below */ }
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.append(ta); ta.focus(); ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch { /* ignore */ }
+    ta.remove();
+    return ok;
+  }
+
+  function say(text) { $("msg").textContent = text; }
+
+  function render() {
+    const text = $("q").value;
+    $("list").innerHTML = "";
+    for (const site of SITES) {
+      const { url, mode } = buildDeepLink(site, text);
+      const li = document.createElement("li");
+      const label = document.createElement("label");
+      const box = document.createElement("input");
+      box.type = "checkbox"; box.checked = enabled.has(site.id);
+      box.onchange = () => { box.checked ? enabled.add(site.id) : enabled.delete(site.id); store.set("enabled", [...enabled]); cursor = 0; render(); };
+      const span = document.createElement("span");
+      span.innerHTML = `<span class="name"></span><span class="tag ${mode === "prefill" ? "ok" : ""}">${mode === "prefill" ? "자동 입력" : "붙여넣기"}</span>`;
+      span.querySelector(".name").textContent = site.name;
+      label.append(box, span);
+      const a = document.createElement("a");
+      a.className = "open" + (text.trim() ? "" : " off");
+      a.textContent = "열기"; a.href = url; a.target = "_blank"; a.rel = "noopener";
+      a.onclick = () => { if (mode === "paste" && text.trim()) copyText(text); };
+      li.append(label, a);
+      $("list").append(li);
+    }
+  }
+
+  $("q").addEventListener("input", () => { store.set("q", $("q").value); render(); });
+
+  $("copy").onclick = async () => {
+    const t = $("q").value;
+    if (!t.trim()) return say("먼저 질문을 입력하세요.");
+    say((await copyText(t)) ? "복사했습니다." : "복사하지 못했습니다. 직접 선택해서 복사하세요.");
+  };
+
+  // iOS opens one new tab per tap, so step through the chosen services one tap at a time.
+  $("next").onclick = async () => {
+    const text = $("q").value;
+    if (!text.trim()) return say("먼저 질문을 입력하세요.");
+    const chosen = SITES.filter((s) => enabled.has(s.id));
+    if (!chosen.length) return say("열 AI를 하나 이상 선택하세요.");
+    if (cursor >= chosen.length) cursor = 0;
+    const site = chosen[cursor];
+    const { url, mode } = buildDeepLink(site, text);
+    if (mode === "paste") await copyText(text);
+    window.open(url, "_blank", "noopener");
+    cursor += 1;
+    const upcoming = chosen[cursor];
+    say(`${site.name} 열었습니다${mode === "paste" ? " (질문을 복사해 뒀으니 붙여넣으세요)" : ""}. ` +
+        (upcoming ? `다음: ${upcoming.name}. 이 페이지로 돌아와 다시 누르세요.` : "마지막입니다."));
+  };
+
+  render();
+</script>
+</body>
+</html>

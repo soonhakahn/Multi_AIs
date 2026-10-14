@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8"><title>mock textarea</title>
+<style>body{margin:0;font:14px sans-serif;background:#223}textarea{width:90%;height:60px;margin:12px}</style>
+<p style="color:#fff;margin:12px">mock: plain textarea (Enter submits)</p>
+<textarea id="prompt-textarea"></textarea>
+<ol id="log" style="color:#9f9"></ol>
+<script>
+  window.__submitted = [];
+  const ta = document.querySelector("textarea");
+  ta.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      window.__submitted.push(ta.value);
+      document.getElementById("log").insertAdjacentHTML("beforeend", "<li></li>");
+      document.getElementById("log").lastChild.textContent = ta.value;
+      ta.value = "";
+    }
+  });
+</script>

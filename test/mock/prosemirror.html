@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8"><title>mock prosemirror</title>
+<style>body{margin:0;font:14px sans-serif;background:#232}.ProseMirror{margin:12px;min-height:60px;border:1px solid #888;color:#fff;padding:6px}</style>
+<p style="color:#fff;margin:12px">mock: contenteditable ProseMirror (Enter submits)</p>
+<div class="ProseMirror" contenteditable="true"></div>
+<ol id="log" style="color:#9f9"></ol>
+<script>
+  window.__submitted = [];
+  const ed = document.querySelector(".ProseMirror");
+  ed.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      window.__submitted.push(ed.innerText.replace(/\n$/, ""));
+      document.getElementById("log").insertAdjacentHTML("beforeend", "<li></li>");
+      document.getElementById("log").lastChild.textContent = ed.innerText;
+      ed.innerHTML = "";
+    }
+  });
+</script>

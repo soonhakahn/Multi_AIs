@@ -1,0 +1,29 @@
+{
+  "name": "multi-ais",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ask several AI chat services the same question and see the answers side by side",
+  "author": "soonhakahn",
+  "license": "MIT",
+  "main": "desktop/main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test \"test/*.test.mjs\"",
+    "test:e2e": "xvfb-run -a node test/e2e.mjs",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "44.7.2",
+    "electron-builder": "26.15.3",
+    "playwright-core": "1.58.2"
+  },
+  "build": {
+    "appId": "com.soonhakahn.multiais",
+    "productName": "Multi AIs",
+    "directories": { "output": "dist" },
+    "files": ["desktop/**", "shared/**", "package.json"],
+    "win": { "target": [{ "target": "portable", "arch": ["x64"] }], "artifactName": "MultiAIs-${version}-win-${arch}.${ext}" },
+    "mac": { "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }], "identity": null, "artifactName": "MultiAIs-${version}-mac-${arch}.${ext}" }
+  }
+}

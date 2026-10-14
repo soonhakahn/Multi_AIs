@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Multi AIs</title>
+<style>
+  :root { --bg: #0f1420; --panel: #19202f; --line: #2a3347; --text: #eef2f8; --muted: #93a0b8; --accent: #ffb020; --ok: #4ccf7a; --bad: #ff6a5e; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; overflow: hidden; }
+  .wrap { height: 100%; padding: 10px 12px; display: grid; grid-template-rows: auto auto auto; gap: 8px; }
+  .row { display: flex; gap: 8px; align-items: stretch; }
+  textarea { flex: 1; min-width: 0; height: 52px; resize: none; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--text); font: inherit; font-size: 14px; }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  button, select { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 10px; padding: 0 12px;
+    font: inherit; cursor: pointer; }
+  button:hover, select:hover { border-color: var(--muted); }
+  #send { background: var(--accent); color: #1b1400; border: 0; font-weight: 700; padding: 0 20px; font-size: 14px; }
+  #send:disabled { opacity: .55; cursor: wait; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--muted); }
+  .chip.on { color: var(--text); border-color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+  .chip.on .dot { background: var(--accent); }
+  .chip.sent .dot { background: var(--ok); }
+  .chip.fail .dot { background: var(--bad); }
+  .tools { display: flex; gap: 8px; align-items: center; color: var(--muted); }
+  .tools label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+  #status { margin-left: auto; color: var(--muted); }
+  .grow { flex: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="row">
+    <textarea id="prompt" placeholder="질문을 입력하세요. Ctrl/⌘ + Enter 로 선택한 AI 모두에게 보냅니다." autofocus></textarea>
+    <button id="send">모두에게 전송</button>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div class="tools">
+    <label><input type="checkbox" id="submit" checked> 입력 후 바로 전송</label>
+    <select id="mode" title="배치">
+      <option value="grid">바둑판</option>
+      <option value="columns">가로 한 줄</option>
+      <option value="rows">세로 한 줄</option>
+    </select>
+    <button id="newchat">전체 새 대화</button>
+    <span id="status"></span>
+  </div>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let state = null;
+  const LABEL = { sent: "전송됨", typed: "입력됨", "no-input": "입력창을 못 찾음", error: "오류" };
+
+  function render(results = {}) {
+    $("chips").innerHTML = "";
+    for (const s of state.sites) {
+      const chip = document.createElement("button");
+      const r = results[s.id];
+      chip.className = "chip" + (s.enabled ? " on" : "") + (r ? (r.status === "sent" || r.status === "typed" ? " sent" : " fail") : "");
+      chip.title = (s.enabled ? "끄기" : "켜기") + (r ? " · " + (LABEL[r.status] || r.status) : "");
+      chip.innerHTML = '<span class="dot"></span>';
+      chip.append(s.name);
+      chip.onclick = async () => { state = await window.api.toggle(s.id); render(); };
+      $("chips").append(chip);
+    }
+    $("mode").value = state.mode;
+  }
+
+  async function send() {
+    const text = $("prompt").value;
+    if (!text.trim()) return;
+    $("send").disabled = true;
+    $("status").textContent = "보내는 중...";
+    const res = await window.api.send(text, $("submit").checked);
+    const byId = Object.fromEntries(res.map((r) => [r.id, r]));
+    const bad = res.filter((r) => r.status === "no-input" || r.status === "error");
+    $("status").textContent = bad.length
+      ? "못 보낸 곳: " + bad.map((r) => state.sites.find((s) => s.id === r.id).name).join(", ") + " (로그인 또는 화면 확인)"
+      : "모두 " + (res.length) + "곳에 " + ($("submit").checked ? "전송했습니다" : "입력했습니다");
+    render(byId);
+    $("send").disabled = false;
+    if (!bad.length && $("submit").checked) $("prompt").value = "";
+  }
+
+  $("send").onclick = send;
+  $("prompt").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } });
+  $("mode").onchange = async (e) => { state = await window.api.setMode(e.target.value); render(); };
+  $("newchat").onclick = () => { window.api.newChat(); $("status").textContent = "새 대화를 열었습니다"; };
+  window.api.getState().then((s) => { state = s; render(); });
+</script>
+</body>
+</html>
