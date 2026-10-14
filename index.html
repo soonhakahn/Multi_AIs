@@ -85,10 +85,17 @@
 
   function say(text) { $("msg").textContent = text; }
 
+  // Auto-fill services first, paste services last: pasting means leaving this page for good,
+  // so everything that needs no return trip goes before it (stable order within each group).
+  function ordered(text) {
+    const needsPaste = (s) => buildDeepLink(s, text).mode === "paste";
+    return [...SITES].sort((a, b) => needsPaste(a) - needsPaste(b));
+  }
+
   function render() {
     const text = $("q").value;
     $("list").innerHTML = "";
-    for (const site of SITES) {
+    for (const site of ordered(text)) {
       const { url, mode } = buildDeepLink(site, text);
       const li = document.createElement("li");
       const label = document.createElement("label");
@@ -120,7 +127,7 @@
   $("next").onclick = async () => {
     const text = $("q").value;
     if (!text.trim()) return say("먼저 질문을 입력하세요.");
-    const chosen = SITES.filter((s) => enabled.has(s.id));
+    const chosen = ordered(text).filter((s) => enabled.has(s.id));
     if (!chosen.length) return say("열 AI를 하나 이상 선택하세요.");
     if (cursor >= chosen.length) cursor = 0;
     const site = chosen[cursor];
