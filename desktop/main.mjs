@@ -1,3 +1,4 @@
+import { GOOGLE_AUTH_URLS, rewriteGoogleAuthHeaders } from "./auth-headers.mjs";
 import { app, BaseWindow, WebContentsView, ipcMain, shell } from "electron";
 import path from "node:path";
 import fs from "node:fs";
@@ -55,6 +56,9 @@ function ensureView(site) {
   });
   const wc = view.webContents;
   wc.setUserAgent(plainUserAgent(wc.getUserAgent()));
+  wc.session.webRequest.onBeforeSendHeaders({ urls: GOOGLE_AUTH_URLS }, (details, callback) => {
+    callback({ requestHeaders: rewriteGoogleAuthHeaders(details.requestHeaders) });
+  });
   wc.setWindowOpenHandler(({ url }) => {
     try {
       const u = new URL(url);
