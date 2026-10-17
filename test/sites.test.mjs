@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SITES, DEFAULT_ENABLED, getSite, buildDeepLink, isAllowedPopupHost } from "../shared/sites.mjs";
+import { SITES, DEFAULT_ENABLED, getSite, buildDeepLink, isAllowedPopupHost, isExternalAuthHost } from "../shared/sites.mjs";
 
 test("the eight requested services are present with unique ids and https URLs", () => {
   assert.deepEqual(
@@ -36,8 +36,16 @@ test("popup hosts: the service itself and known login providers only", () => {
   const claude = getSite("claude");
   assert.equal(isAllowedPopupHost("claude.ai", claude), true);
   assert.equal(isAllowedPopupHost("www.claude.ai", claude), true);
-  assert.equal(isAllowedPopupHost("accounts.google.com", claude), true);
+  assert.equal(isAllowedPopupHost("challenges.cloudflare.com", claude), true);
+  assert.equal(isAllowedPopupHost("accounts.google.com", claude), false);
   assert.equal(isAllowedPopupHost("evil-claude.ai", claude), false);
   assert.equal(isAllowedPopupHost("example.com", claude), false);
   assert.equal(isAllowedPopupHost("", claude), false);
+});
+
+test("default selection is Claude, ChatGPT and Perplexity; Google-style sign-in is external", () => {
+  assert.deepEqual(DEFAULT_ENABLED, ["claude", "chatgpt", "perplexity"]);
+  assert.equal(isExternalAuthHost("accounts.google.com"), true);
+  assert.equal(isExternalAuthHost("login.microsoftonline.com"), true);
+  assert.equal(isExternalAuthHost("claude.ai"), false);
 });

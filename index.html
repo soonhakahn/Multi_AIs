@@ -68,7 +68,7 @@
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage may be unavailable */ } },
   };
 
-  let enabled = new Set(store.get("enabled", [...DEFAULT_ENABLED, "grok", "kimi", "manus", "genspark"]));
+  let enabled = new Set(store.get("enabled", DEFAULT_ENABLED));
   let cursor = 0;
   $("q").value = store.get("q", "");
 

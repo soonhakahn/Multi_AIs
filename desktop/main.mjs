@@ -1,9 +1,8 @@
-import { GOOGLE_AUTH_URLS, rewriteGoogleAuthHeaders } from "./auth-headers.mjs";
 import { app, BaseWindow, WebContentsView, ipcMain, shell } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { SITES, DEFAULT_ENABLED, getSite, isAllowedPopupHost } from "../shared/sites.mjs";
+import { SITES, DEFAULT_ENABLED, getSite, isAllowedPopupHost, isExternalAuthHost } from "../shared/sites.mjs";
 import { computeLayout, MODES } from "./layout.mjs";
 import { buildFocusScript } from "./inject.mjs";
 
@@ -14,6 +13,7 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 let win = null;
 let bar = null;
 const views = new Map(); // site id -> WebContentsView
+const PREFS_VERSION = 2;
 let prefs = { enabled: DEFAULT_ENABLED, mode: "grid" };
 
 const prefsPath = () => path.join(app.getPath("userData"), "prefs.json");
@@ -21,7 +21,8 @@ const prefsPath = () => path.join(app.getPath("userData"), "prefs.json");
 function loadPrefs() {
   try {
     const saved = JSON.parse(fs.readFileSync(prefsPath(), "utf8"));
-    const enabled = (saved.enabled || []).filter((id) => getSite(id));
+    // Saved selections from before the three-service default are ignored once.
+    const enabled = saved.version === PREFS_VERSION ? (saved.enabled || []).filter((id) => getSite(id)) : [];
     prefs = {
       enabled: enabled.length ? enabled : DEFAULT_ENABLED,
       mode: MODES.includes(saved.mode) ? saved.mode : "grid",
@@ -32,7 +33,7 @@ function loadPrefs() {
 }
 const savePrefs = () => {
   try {
-    fs.writeFileSync(prefsPath(), JSON.stringify(prefs));
+    fs.writeFileSync(prefsPath(), JSON.stringify({ ...prefs, version: PREFS_VERSION }));
   } catch {
     /* non-fatal */
   }
@@ -56,13 +57,28 @@ function ensureView(site) {
   });
   const wc = view.webContents;
   wc.setUserAgent(plainUserAgent(wc.getUserAgent()));
-  wc.session.webRequest.onBeforeSendHeaders({ urls: GOOGLE_AUTH_URLS }, (details, callback) => {
-    callback({ requestHeaders: rewriteGoogleAuthHeaders(details.requestHeaders) });
-  });
+  // Google/Apple/Microsoft/GitHub sign-in goes to the system browser, never inside a panel.
+  const toSystemBrowser = (event, url) => {
+    try {
+      const u = new URL(url);
+      if (/^https?:$/.test(u.protocol) && isExternalAuthHost(u.hostname)) {
+        event.preventDefault();
+        shell.openExternal(url);
+      }
+    } catch {
+      /* ignore malformed URLs */
+    }
+  };
+  wc.on("will-navigate", toSystemBrowser);
+  wc.on("will-redirect", toSystemBrowser);
   wc.setWindowOpenHandler(({ url }) => {
     try {
       const u = new URL(url);
       if (!/^https?:$/.test(u.protocol)) return { action: "deny" };
+      if (isExternalAuthHost(u.hostname)) {
+        shell.openExternal(url);
+        return { action: "deny" };
+      }
       if (isAllowedPopupHost(u.hostname, site)) return { action: "allow" };
       shell.openExternal(url);
     } catch {

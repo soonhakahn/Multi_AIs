@@ -64,7 +64,7 @@ export const SITES = [
   },
 ];
 
-export const DEFAULT_ENABLED = ["chatgpt", "claude", "gemini", "perplexity"];
+export const DEFAULT_ENABLED = ["claude", "chatgpt", "perplexity"];
 
 export function getSite(id) {
   return SITES.find((s) => s.id === id) || null;
@@ -81,16 +81,25 @@ export function buildDeepLink(site, text, maxUrlLength = 1800) {
   return { url: site.url, mode: "paste" };
 }
 
-// Hosts a login or captcha popup may use besides the service's own domain.
-const AUTH_HOSTS = [
+// Third-party sign-in providers (Google etc.) refuse embedded browsers, so the desktop app hands
+// them to the system browser; users sign in with each service's email + password instead.
+const EXTERNAL_AUTH_HOSTS = [
   "accounts.google.com",
   "accounts.youtube.com",
   "appleid.apple.com",
   "login.microsoftonline.com",
   "login.live.com",
   "github.com",
-  "challenges.cloudflare.com",
 ];
+
+// Hosts a captcha popup may use besides the service's own domain.
+const CHALLENGE_HOSTS = ["challenges.cloudflare.com"];
+
+const matchesHost = (h, list) => list.some((a) => h === a || h.endsWith(`.${a}`));
+
+export function isExternalAuthHost(hostname) {
+  return matchesHost((hostname || "").toLowerCase(), EXTERNAL_AUTH_HOSTS);
+}
 
 function sameSite(host, siteHost) {
   const strip = (h) => h.replace(/^www\./, "");
@@ -102,6 +111,6 @@ function sameSite(host, siteHost) {
 export function isAllowedPopupHost(hostname, site) {
   const h = (hostname || "").toLowerCase();
   if (!h) return false;
-  if (AUTH_HOSTS.some((a) => h === a || h.endsWith(`.${a}`))) return true;
+  if (matchesHost(h, CHALLENGE_HOSTS)) return true;
   return sameSite(h, new URL(site.url).hostname);
 }
