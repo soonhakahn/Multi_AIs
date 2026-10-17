@@ -1,10 +1,11 @@
-import { app, BaseWindow, WebContentsView, ipcMain, shell } from "electron";
+import { app, BaseWindow, BrowserWindow, WebContentsView, ipcMain, shell, clipboard } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { SITES, DEFAULT_ENABLED, getSite, isAllowedPopupHost, isExternalAuthHost } from "../shared/sites.mjs";
 import { computeLayout, MODES } from "./layout.mjs";
 import { buildFocusScript } from "./inject.mjs";
+import { buildExtractScript, buildCountScript } from "./extract.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BAR_HEIGHT = 150;
@@ -12,6 +13,9 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let win = null;
 let bar = null;
+let resultsWin = null;
+let lastQuestion = "";
+const baselines = new Map(); // site id -> { text, skip }: what was on the page before the last question
 const views = new Map(); // site id -> WebContentsView
 const PREFS_VERSION = 2;
 let prefs = { enabled: DEFAULT_ENABLED, mode: "grid" };
@@ -123,9 +127,14 @@ function state() {
 // Focus each service's box, type the text like a keyboard would, then press Enter.
 async function sendPrompt(text, submit) {
   const results = [];
+  if (submit) lastQuestion = text;
   for (const site of activeSites()) {
     const wc = ensureView(site).webContents;
     try {
+      if (submit) {
+        const skip = await wc.executeJavaScript(buildCountScript(text), true).catch(() => 0);
+        baselines.set(site.id, { text: await readAnswer(site, ""), skip });
+      }
       const focused = await wc.executeJavaScript(buildFocusScript(site.inputSelectors), true);
       if (!focused) {
         results.push({ id: site.id, status: "no-input" });
@@ -147,6 +156,63 @@ async function sendPrompt(text, submit) {
   return results;
 }
 
+// Latest answer text on a service's page ("" when none could be found).
+async function readAnswer(site, question, skip = 0) {
+  try {
+    const out = await ensureView(site).webContents.executeJavaScript(buildExtractScript(site.answerSelectors, question, skip), true);
+    return typeof out === "string" ? out : "";
+  } catch {
+    return "";
+  }
+}
+
+// Wait until each service's answer stops changing, then return all of them.
+// An answer identical to what was on the page before we asked is not new, so it is ignored.
+async function collectAnswers({ stableMs = 3000, timeoutMs = 120000, pollMs = 1000 } = {}) {
+  const sites = activeSites();
+  const started = Date.now();
+  const readNew = async (site) => {
+    const base = baselines.get(site.id) || { text: "", skip: 0 };
+    const text = await readAnswer(site, lastQuestion, base.skip);
+    return text && text === base.text ? "" : text;
+  };
+  const items = await Promise.all(
+    sites.map(async (site) => {
+      let text = "";
+      let changedAt = Date.now();
+      while (Date.now() - started < timeoutMs) {
+        const now = await readNew(site);
+        if (now !== text) {
+          text = now;
+          changedAt = Date.now();
+        } else if (text && Date.now() - changedAt >= stableMs) {
+          break;
+        }
+        await delay(pollMs);
+      }
+      return { id: site.id, name: site.name, text };
+    }),
+  );
+  return { question: lastQuestion, items };
+}
+
+function showResults(data) {
+  if (!resultsWin || resultsWin.isDestroyed()) {
+    resultsWin = new BrowserWindow({
+      width: 1000,
+      height: 820,
+      title: "답변 모아보기",
+      backgroundColor: "#0f1420",
+      webPreferences: { preload: path.join(here, "results-preload.cjs"), contextIsolation: true, sandbox: true },
+    });
+    resultsWin.loadFile(path.join(here, "results.html"));
+    resultsWin.webContents.once("did-finish-load", () => resultsWin.webContents.send("results:data", data));
+  } else {
+    resultsWin.webContents.send("results:data", data);
+    resultsWin.focus();
+  }
+}
+
 function fromBar(event) {
   return bar && event.sender === bar.webContents;
 }
@@ -156,6 +222,17 @@ function registerIpc() {
   ipcMain.handle("prompt:send", (e, { text, submit }) => {
     if (!fromBar(e) || typeof text !== "string" || !text.trim()) return [];
     return sendPrompt(text, submit !== false);
+  });
+  ipcMain.handle("answers:collect", async (e) => {
+    if (!fromBar(e)) return null;
+    const data = await collectAnswers();
+    showResults(data);
+    return data.items.map((i) => ({ id: i.id, ok: Boolean(i.text) }));
+  });
+  ipcMain.handle("results:copy", (e, text) => {
+    if (resultsWin && !resultsWin.isDestroyed() && e.sender === resultsWin.webContents && typeof text === "string") {
+      clipboard.writeText(text);
+    }
   });
   ipcMain.handle("site:toggle", (e, id) => {
     if (!fromBar(e) || !getSite(id)) return state();
@@ -205,7 +282,7 @@ app.whenReady().then(() => {
   registerIpc();
   createWindow();
   if (process.env.MULTI_AIS_TEST) {
-    globalThis.__multiAis = { sendPrompt, views, state, prefs: () => prefs, relayout, bar: () => bar, win: () => win };
+    globalThis.__multiAis = { sendPrompt, collectAnswers, views, state, prefs: () => prefs, relayout, bar: () => bar, win: () => win };
   }
 });
 app.on("window-all-closed", () => app.quit());

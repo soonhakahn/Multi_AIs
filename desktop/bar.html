@@ -47,6 +47,7 @@
       <option value="columns">가로 한 줄</option>
       <option value="rows">세로 한 줄</option>
     </select>
+    <button id="collect" title="각 AI의 답이 끝나면 한 창에 모아 보여 줍니다">답변 모으기</button>
     <button id="newchat">전체 새 대화</button>
     <span id="status"></span>
   </div>
@@ -90,6 +91,14 @@
   $("send").onclick = send;
   $("prompt").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } });
   $("mode").onchange = async (e) => { state = await window.api.setMode(e.target.value); render(); };
+  $("collect").onclick = async () => {
+    $("collect").disabled = true;
+    $("status").textContent = "답변이 끝나길 기다리는 중... (최대 2분)";
+    const res = await window.api.collect();
+    $("collect").disabled = false;
+    const miss = (res || []).filter((r) => !r.ok).map((r) => state.sites.find((s) => s.id === r.id).name);
+    $("status").textContent = miss.length ? "못 읽은 곳: " + miss.join(", ") : "답변 " + res.length + "개를 모았습니다";
+  };
   $("newchat").onclick = () => { window.api.newChat(); $("status").textContent = "새 대화를 열었습니다"; };
   window.api.getState().then((s) => { state = s; render(); });
 </script>

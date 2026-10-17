@@ -4,6 +4,8 @@
 // box for you. These are commonly used URL forms, not official contracts; a service may change or
 // drop them. Services without prefill need the text pasted (the launcher copies it first).
 // inputSelectors: where the desktop app focuses before typing; generic fallbacks follow in inject.mjs.
+// answerSelectors: where the desktop app reads the latest answer (best guesses; desktop/extract.mjs
+// falls back to "everything after the question" when they match nothing).
 
 export const SITES = [
   {
@@ -12,6 +14,7 @@ export const SITES = [
     url: "https://chatgpt.com/",
     prefill: { base: "https://chatgpt.com/", param: "q" },
     inputSelectors: ["#prompt-textarea"],
+    answerSelectors: ["[data-message-author-role=\"assistant\"]"],
   },
   {
     id: "claude",
@@ -19,6 +22,7 @@ export const SITES = [
     url: "https://claude.ai/new",
     prefill: { base: "https://claude.ai/new", param: "q" },
     inputSelectors: ['div.ProseMirror[contenteditable="true"]'],
+    answerSelectors: [".font-claude-response", "[data-is-streaming]"],
   },
   {
     id: "gemini",
@@ -26,6 +30,7 @@ export const SITES = [
     url: "https://gemini.google.com/app",
     prefill: null,
     inputSelectors: ['rich-textarea div.ql-editor[contenteditable="true"]', 'div.ql-editor[contenteditable="true"]'],
+    answerSelectors: ["model-response message-content", ".model-response-text"],
   },
   {
     id: "perplexity",
@@ -33,6 +38,7 @@ export const SITES = [
     url: "https://www.perplexity.ai/",
     prefill: { base: "https://www.perplexity.ai/search", param: "q" },
     inputSelectors: ['#ask-input', 'div[contenteditable="true"][role="textbox"]'],
+    answerSelectors: ["[id^=\"markdown-content\"]", ".prose"],
   },
   {
     id: "grok",
@@ -40,6 +46,7 @@ export const SITES = [
     url: "https://grok.com/",
     prefill: { base: "https://grok.com/", param: "q" },
     inputSelectors: ["textarea"],
+    answerSelectors: [".response-content-markdown"],
   },
   {
     id: "kimi",
@@ -47,6 +54,7 @@ export const SITES = [
     url: "https://www.kimi.com/",
     prefill: null,
     inputSelectors: ['div.chat-input-editor[contenteditable="true"]', 'div[contenteditable="true"]'],
+    answerSelectors: [".segment-assistant .markdown", ".segment-assistant"],
   },
   {
     id: "manus",
@@ -54,6 +62,7 @@ export const SITES = [
     url: "https://manus.im/app",
     prefill: null,
     inputSelectors: ["textarea"],
+    answerSelectors: [],
   },
   {
     id: "genspark",
@@ -61,6 +70,7 @@ export const SITES = [
     url: "https://www.genspark.ai/",
     prefill: { base: "https://www.genspark.ai/search", param: "query" },
     inputSelectors: ["textarea"],
+    answerSelectors: [],
   },
 ];
 

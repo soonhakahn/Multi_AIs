@@ -19,3 +19,17 @@
     }
   });
 </script>
+<script>
+  // Test double of an answer appearing after submit: partial text first, then the full answer.
+  (() => {
+    const orig = window.__submitted.push.bind(window.__submitted);
+    window.__submitted.push = (q) => {
+      const el = document.createElement("div");
+      if (document.title.includes("textarea")) el.setAttribute("data-message-author-role", "assistant");
+      document.body.append(el);
+      el.textContent = "답변: 생각 중";
+      setTimeout(() => (el.textContent = "답변: " + q + " 에 대한 완성된 답"), 700);
+      return orig(q);
+    };
+  })();
+</script>

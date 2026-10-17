@@ -9,6 +9,8 @@
 - 설치 파일: GitHub → Actions → **Build desktop app** → Run workflow → 완료 후 Artifacts 다운로드(태그 `v*`를 푸시하면 Releases에도 올라갑니다).
   - Mac dmg는 서명되지 않아 처음 열 때 우클릭 → 열기가 필요하고, Windows는 SmartScreen 경고가 나올 수 있습니다.
 
+- **답변 모으기**: 질문을 보낸 뒤 위쪽 "답변 모으기"를 누르면 각 AI의 답이 끝날 때까지(최대 2분) 기다렸다가 한 창에 모아 보여 주고, 개별/전체 복사를 할 수 있습니다. 각 사이트 화면 구조에 의존하므로 일부 AI는 못 읽을 수 있습니다(`shared/sites.mjs`의 `answerSelectors`).
+
 ## 2. iPhone용 발사대 (웹 페이지)
 - `index.html`을 GitHub Pages로 공개합니다: Settings → Pages → Deploy from a branch → `main` / `/ (root)`.
 - 주소: https://soonhakahn.github.io/Multi_AIs/

@@ -7,5 +7,6 @@ contextBridge.exposeInMainWorld("api", {
   setMode: (mode) => ipcRenderer.invoke("layout:set", mode),
   newChat: (id) => ipcRenderer.invoke("site:newchat", id ?? null),
   reload: (id) => ipcRenderer.invoke("site:reload", id),
+  collect: () => ipcRenderer.invoke("answers:collect"),
   external: (id) => ipcRenderer.invoke("site:external", id),
 });

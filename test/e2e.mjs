@@ -78,6 +78,32 @@ try {
     assert.ok(!received[s.id].decoy, `${s.id}: hidden decoy input must stay untouched`);
   }
 
+  // Collect the answers: each panel's reply (after it stops changing) lands in one result.
+  const collected = await inMain(({}, o) => globalThis.__multiAis.collectAnswers(o), { stableMs: 1500, timeoutMs: 20000, pollMs: 200 });
+  assert.equal(collected.question, question);
+  assert.equal(collected.items.length, 8);
+  for (const item of collected.items) {
+    assert.ok(item.text.includes(`답변: ${question} 에 대한 완성된 답`), `${item.id} answer: ${JSON.stringify(item.text)}`);
+  }
+
+  // The bar's button path opens the results window with every answer in it.
+  const summary = await inBar("window.api.collect()");
+  assert.equal(summary.length, 8);
+  assert.ok(summary.every((r) => r.ok), "every service answer was read");
+  let resultsPage;
+  for (let i = 0; i < 50 && !resultsPage; i++) {
+    resultsPage = app.windows().find((w) => w.url().endsWith("results.html"));
+    if (!resultsPage) await new Promise((r) => setTimeout(r, 100));
+  }
+  assert.ok(resultsPage, "results window opened: " + app.windows().map((w) => w.url()).join(" "));
+  await resultsPage.waitForFunction(() => document.querySelectorAll("section").length === 8);
+  const shownText = await resultsPage.evaluate(() => document.body.innerText);
+  assert.ok(shownText.includes(question) && shownText.includes("에 대한 완성된 답"));
+  if (shots) {
+    fs.mkdirSync(shots, { recursive: true });
+    await resultsPage.screenshot({ path: path.join(shots, "results.png") });
+  }
+
   // "Type only" mode leaves the text in the box without submitting.
   const typed = await inBar(`window.api.send("입력만 하기", false)`);
   assert.ok(typed.every((r) => r.status === "typed"));
@@ -103,7 +129,7 @@ try {
     await snap("claude.png", "globalThis.__multiAis.views.get('claude')");
     await snap("gemini.png", "globalThis.__multiAis.views.get('gemini')");
   }
-  console.log("e2e OK: 8 services layout, send, type-only, toggle");
+  console.log("e2e OK: 8 services layout, send, collect answers, type-only, toggle");
 } finally {
   await app.close();
   fs.rmSync(mockDir, { recursive: true, force: true });
